@@ -1,52 +1,75 @@
 # Trace
 
-Trace is an open research prototype for menstrual-health infrastructure. It pairs a de-identified longitudinal trajectory schema with data-quality reporting, a calibration-weighted baseline score, model-sensitivity explanations, and a population-reality audit.
+> **A gentle, research-first space for making longitudinal health observations more legible.**
 
-> **Not a diagnostic tool.** Every result is a risk-pattern flag, not a diagnosis or medical advice.
+![Trace watercolor hero](app/assets/traceimage.jpeg)
 
-## What is included
+Trace is an open research prototype for menstrual-health infrastructure. Its lilac-and-blue interface keeps daily records calm and approachable while its API makes data quality, missingness, and uncertainty explicit.
 
-- `model/audit_and_reweight.py` - reusable post-stratification weighting audit.
-- `model/train.py` - deterministic raw and NHANES-calibrated model training, using independent fit, calibration, and test partitions.
-- `api/main.py` - FastAPI service with a reusable daily-trajectory schema, trajectory summaries, baseline assessment, SHAP explanations, counterfactual, and data-debt endpoints.
-- `app/index.html` - local browser demo for creating a non-diagnostic research trajectory record.
-- `data/TRACE_TRAJECTORY_SCHEMA.md` - portable daily-observation schema, privacy boundary, and benchmark-extension rules.
-- `data/` - benchmark methodology, data-debt report, and dataset datasheets.
-- `artifacts/` - model checkpoints, split indices, and reproducibility metadata.
+> [!WARNING]
+> **Not a diagnostic tool or medical device.** Trace produces research summaries only; it does not diagnose, predict treatment, or provide medical advice.
+
+## Why Trace?
+
+| Lilac clarity | Blue transparency | Research boundaries |
+| --- | --- | --- |
+| A soft, accessible interface for daily observations | Completeness and missingness stay visible | Identifier-free records and non-clinical language by design |
+
+## What it includes
+
+- A responsive lilac-and-blue browser experience for entering daily symptoms and cycle context.
+- A reusable, de-identified daily-trajectory schema with strict validation.
+- Descriptive symptom patterns, completeness indicators, and an exact API response view.
+- An optional, aggregate-only AI reflection that excludes dates and raw daily observations.
+- Calibration-weighted baseline research scoring, model-sensitivity explanations, and a population-reality audit.
+
+## Project map
+
+```text
+app/                  Front-end experience and visual assets
+api/main.py           FastAPI service and research-only endpoints
+data/                 Schema, datasheets, source data, and debt report
+model/                Training and population-audit workflows
+artifacts/            Reproducible model outputs and metadata
+tests/                API and audit tests
+```
 
 ## Run locally
 
-Use one project-local virtual environment and the exact pinned dependencies. Model artifacts and dependency versions are a matched set; always retrain after changing Python, NumPy, or scikit-learn.
+Trace runs as a single FastAPI app. Use the pinned dependencies because the saved artifacts and their dependency versions are a matched set.
 
 ```powershell
 py -3.11 -m venv .trace-env
 .\.trace-env\Scripts\python.exe -m pip install --upgrade pip
 .\.trace-env\Scripts\python.exe -m pip install -r requirements.txt
-.\.trace-env\Scripts\python.exe -m model.train
 .\.trace-env\Scripts\python.exe -m uvicorn api.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000` after starting the API, or use `http://127.0.0.1:8000/docs`.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000) to use the app, or [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for the API documentation.
 
-## Reproduce the model
+### Optional AI reflection
 
-The four supplied source data files are in `data/raw/`. Training uses a fixed seed (`42`) and stratified fit/calibration/test partitions. It saves the split indices, source-data hash, dependency version, model parameters, capped weighting audit, and held-out discrimination, calibration, and bootstrap-uncertainty metrics in `artifacts/training_summary.json`.
+Copy `.env.example` to `.env`, then add an `OPENAI_API_KEY`. The explanation is opt-in and Trace only sends an already-aggregated summary—never dates or raw observations. `TRACE_OPENAI_MODEL` can override the default model.
 
-The NHANES files are reference-only: they create a survey-weighted BMI-category by menstrual-irregularity distribution, but no NHANES record is linked to the labelled training data. The labelled dataset has unconfirmed provenance and must not be treated as clinical ground truth. Trace is therefore explicitly marked `research_only_not_clinically_validated`; its internal metrics do not establish real-world accuracy.
+## API at a glance
 
-## API contract
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /v1/trajectory/schema` | Returns the portable, identifier-free record contract. |
+| `POST /v1/trajectory` | Validates observations and returns descriptive summaries with data quality. |
+| `POST /v1/trajectory/explain` | Generates an opt-in aggregate-only research reflection. |
+| `POST /v1/assess` | Returns a calibration-weighted baseline research score and local factors. |
+| `GET /v1/explain/global` | Returns global model sensitivity information. |
+| `GET /v1/data-debt-report` | Returns the documented distributional audit. |
 
-- `GET /v1/trajectory/schema` publishes Trace's identifier-free daily-observation contract.
-- `POST /v1/trajectory` validates daily observations and returns the original research record, data completeness, cycle context, and descriptive trends.
-- `POST /v1/assess` returns a calibration-weighted research score, raw-model score, model-agreement score, held-out research prediction range, and local SHAP factors.
-- `POST /v1/counterfactual` changes exactly one chosen input and re-scores the weighted model.
-- `GET /v1/explain/global` returns global feature importance as mean absolute SHAP values over the saved background sample.
-- `GET /v1/data-debt-report` returns the documented distributional audit.
+## Reproducibility and limits
 
-The trajectory endpoint is the project's primary infrastructure asset: it deliberately accepts no identifiers and produces no diagnosis. `model_agreement_score` describes agreement between the raw and calibration-weighted research models; it is not clinical certainty, validation, or a diagnosis. SHAP values show how inputs move the model score relative to its saved background dataset; they are not causal or medical explanations.
+Training uses a fixed seed (`42`) and stratified fit, calibration, and test partitions. `artifacts/training_summary.json` records split indices, source-data hashes, dependency versions, model parameters, audit outputs, and held-out evaluation metrics.
 
-See [BENCHMARK.md](BENCHMARK.md) and [DATA_DEBT_REPORT.md](data/DATA_DEBT_REPORT.md) before interpreting any model result.
+The supplied NHANES files are reference-only and are not linked to labelled training data. The labelled dataset has unconfirmed provenance and must not be interpreted as clinical ground truth. Internal model metrics do not establish real-world accuracy.
+
+Before using or extending this work, read [the benchmark notes](BENCHMARK.md), [the trajectory schema](data/TRACE_TRAJECTORY_SCHEMA.md), and [the data-debt report](data/DATA_DEBT_REPORT.md).
 
 ## License
 
-Code is MIT licensed. Project documentation is CC-BY-4.0. Original source datasets retain their own terms; the structured labelled dataset has unconfirmed provenance.
+Code is MIT licensed. Project documentation is CC-BY-4.0. Original source datasets retain their own terms.

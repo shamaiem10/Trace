@@ -30,6 +30,19 @@ def test_health_exposes_non_clinical_validation_status():
     assert status["deployment_status"] == "research_only_not_clinically_validated"
 
 
+def test_demo_is_wired_to_live_trajectory_backend():
+    response = TestClient(app).get("/")
+    assert response.status_code == 200
+    assert "fetch('/v1/trajectory'" in response.text
+    assert "Direct backend response" in response.text
+
+
+def test_demo_serves_the_local_hero_artwork():
+    response = TestClient(app).get("/app/assets/trace-hero.png")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+
+
 def test_counterfactual_rejects_unknown_feature():
     patient = {"age": 32, "bmi": 28, "menstrual_irregularity": 1, "chronic_pain_level": 7, "hormone_level_abnormality": 0, "infertility": 0}
     response = TestClient(app).post("/v1/counterfactual", json={"patient": patient, "feature": "unknown", "delta": 1})
@@ -56,6 +69,66 @@ def test_trajectory_rejects_identifiers_and_duplicate_dates():
         {"observed_on": "2026-07-01", "pain_level": 4},
     ]}
     assert TestClient(app).post("/v1/trajectory", json=payload).status_code == 422
+
+
+def test_ai_explanation_rejects_raw_daily_records_before_any_provider_call():
+    response = TestClient(app).post("/v1/trajectory/explain", json={"summary": {"record": [{"observed_on": "2026-07-01"}]}})
+    assert response.status_code == 422
+
+
+def test_ai_explanation_requires_explicit_server_configuration(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("TRACE_OPENAI_MODEL", raising=False)
+    response = TestClient(app).post("/v1/trajectory/explain", json={"summary": {"observation_window": {"daily_records": 2}}})
+    assert response.status_code == 503
+    assert "not configured" in response.json()["detail"]
+
+
+def test_ai_explanation_uses_default_model_when_override_is_blank(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("TRACE_OPENAI_MODEL", "")
+    from api.main import generate_research_narrative
+    import urllib.request
+
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"output_text": "Research-only narrative."}'
+
+    def fake_urlopen(request, timeout):
+        captured.update(__import__("json").loads(request.data.decode("utf-8")))
+        return FakeResponse()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    assert generate_research_narrative({"measurements": {}}) == "Research-only narrative."
+    assert captured["model"] == "gpt-4.1-mini"
+
+
+def test_ai_explanation_reads_nested_responses_api_output(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("TRACE_OPENAI_MODEL", "test-model")
+    from api.main import generate_research_narrative
+    import urllib.request
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"output": [{"type": "message", "content": [{"type": "output_text", "text": "First paragraph."}, {"type": "output_text", "text": "Second paragraph."}]}]}'
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda request, timeout: FakeResponse())
+    assert generate_research_narrative({"measurements": {}}) == "First paragraph.\n\nSecond paragraph."
 
 
 def test_global_explanation_reports_dependency_status():

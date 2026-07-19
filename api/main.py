@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
+import urllib.request
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
@@ -18,9 +20,26 @@ except ImportError:  # Allows the API to start with an explicit fallback message
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_local_env() -> None:
+    """Load simple project-local environment settings without overriding deployment secrets."""
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+load_local_env()
 ARTIFACT_DIR = Path(os.getenv("TRACE_ARTIFACT_DIR", ROOT / "artifacts"))
 REPORT_PATH = ROOT / "data" / "DATA_DEBT_REPORT.md"
 DEMO_PATH = ROOT / "app" / "index.html"
@@ -37,6 +56,7 @@ FEATURES = summary["features"]
 SHAP_BACKGROUND = pd.read_csv(ARTIFACT_DIR / summary.get("explainability", {}).get("background_artifact", "shap_background.csv"))
 
 app = FastAPI(title="Trace API", version="0.1.0", description="Research-only endometriosis risk-pattern prototype; not clinically validated.")
+app.mount("/app", StaticFiles(directory=ROOT / "app"), name="app")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["null", "http://127.0.0.1:8000", "http://localhost:8000"],
@@ -97,6 +117,20 @@ class TrajectoryRequest(BaseModel):
             raise ValueError("observations must have unique dates")
         return self
 
+
+class TrajectoryExplanationRequest(BaseModel):
+    """Opt-in request containing only an already-aggregated trajectory summary."""
+    model_config = ConfigDict(extra="forbid")
+    summary: dict
+
+    @model_validator(mode="after")
+    def rejects_raw_records_and_identifiers(self):
+        serialized = json.dumps(self.summary).lower()
+        forbidden = ("record", "observed_on", "name", "email", "phone", "address", "medical_record")
+        if any(f'"{field}"' in serialized for field in forbidden):
+            raise ValueError("send only the aggregated summary; raw observations and identifiers are not accepted")
+        return self
+
 def fallback_explain(row: pd.DataFrame, base_risk: float) -> list[dict]:
     """Temporary dependency-missing fallback; SHAP is used when installed."""
     baseline = summary["explanation_reference"]
@@ -127,6 +161,43 @@ def summarize_measure(values: pd.Series, days: pd.Series) -> dict:
         slope_per_day = np.polyfit(days[available], observed_values, 1)[0]
         result["change_per_week"] = round(float(slope_per_day * 7), 2)
     return result
+
+
+def generate_research_narrative(summary_payload: dict) -> str:
+    """Request a bounded, non-clinical explanation from the OpenAI Responses API."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    model = os.getenv("TRACE_OPENAI_MODEL") or "gpt-4.1-mini"
+    if not api_key:
+        raise HTTPException(503, detail="AI explanation is not configured. Add OPENAI_API_KEY to the private .env file.")
+    instructions = (
+        "You explain an aggregated, de-identified menstrual-health research trajectory. "
+        "Use plain, calm language. Describe only patterns explicitly present in the supplied summary, including missingness. "
+        "Do not diagnose, assess risk, recommend treatment, suggest medication, infer a condition, or make claims about ovulation. "
+        "State that this is a research summary and encourage professional care only for urgent, severe, or persistent symptoms. "
+        "Return 2-3 short paragraphs with no markdown headings, no bullet points, and no numerical claims beyond supplied values."
+    )
+    payload = json.dumps({"model": model, "instructions": instructions,
+                          "input": f"Aggregated Trace trajectory summary:\n{json.dumps(summary_payload, sort_keys=True)}"}).encode("utf-8")
+    request = urllib.request.Request("https://api.openai.com/v1/responses", data=payload, method="POST",
+                                     headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        raise HTTPException(502, detail=f"AI explanation request failed with status {error.code}.") from error
+    except urllib.error.URLError as error:
+        raise HTTPException(502, detail="AI explanation service could not be reached.") from error
+    narrative = body.get("output_text")
+    if not narrative:
+        text_parts = []
+        for item in body.get("output", []):
+            for content in item.get("content", []):
+                if content.get("type") == "output_text" and content.get("text"):
+                    text_parts.append(content["text"])
+        narrative = "\n\n".join(text_parts)
+    if not narrative:
+        raise HTTPException(502, detail="AI explanation service returned no readable text.")
+    return narrative.strip()
 
 
 @lru_cache(maxsize=1)
@@ -225,6 +296,14 @@ def trajectory(request: TrajectoryRequest) -> dict:
                         "measurements": measures,
                         "data_quality_note": "Missingness is reported per measure. Trend estimates need repeated observations and are descriptive only."},
             "disclaimer": "Research trajectory only. This summary is not a diagnosis, prognosis, or medical advice."}
+
+
+@app.post("/v1/trajectory/explain")
+def explain_trajectory(request: TrajectoryExplanationRequest) -> dict:
+    """Generate an opt-in, bounded explanation of an aggregated trajectory summary."""
+    return {"narrative": generate_research_narrative(request.summary), "method": "openai_responses_api",
+            "privacy_note": "Only the aggregated trajectory summary was sent for this explanation; raw daily observations were excluded.",
+            "disclaimer": "AI-generated research explanation only. It is not a diagnosis, prognosis, treatment recommendation, or medical advice."}
 
 @app.post("/v1/counterfactual")
 def counterfactual(request: CounterfactualRequest) -> dict:
