@@ -1,0 +1,26 @@
+{
+  "features": [
+    "Age",
+    "BMI",
+    "Menstrual_Irregularity",
+    "Chronic_Pain_Level",
+    "Hormone_Level_Abnormality",
+    "Infertility"
+  ],
+  "disclaimer": "This is a risk pattern flag, not a diagnosis. It is not medical advice.",
+  "interval_radius": 0.6462720279218787,
+  "reference_rows": 1206,
+  "audit": {
+    "raw_weight_min": 0.028944426515695832,
+    "raw_weight_max": 26.925879642625745,
+    "cap": 0.8411926370187652,
+    "capped_fraction": 0.2899
+  },
+  "metrics": {
+    "raw_auc": 0.6353561166865395,
+    "corrected_auc": 0.6308640326907791,
+    "mean_divergence": 0.06603974830626767,
+    "max_divergence": 0.3306394481330709,
+    "fraction_shifted_over_015": 0.088
+  }
+}
