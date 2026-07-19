@@ -8,16 +8,15 @@
 
 **An open, reproducible model-audit layer for women’s hormonal-health research.**
 
-[![Research Only](https://img.shields.io/badge/scope-research%20only-%236258a6?style=for-the-badge)](#responsible-scope)
-[![FastAPI](https://img.shields.io/badge/API-FastAPI-%238097d6?style=for-the-badge)](#api-reference)
-[![Tests](https://img.shields.io/badge/tests-20%20passing-%234c817e?style=for-the-badge)](#verification)
-[![Reproducible](https://img.shields.io/badge/pipeline-reproducible-%237bb8d7?style=for-the-badge)](#reproducibility)
-[![License: MIT](https://img.shields.io/badge/license-MIT-%23yellow?style=for-the-badge)](LICENSE)
-[![Open Source Love](https://img.shields.io/badge/open%20source-%E2%9D%A4-%23e25555?style=for-the-badge)](#)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-%2359b36a?style=for-the-badge)](#contributing)
-[![Python](https://img.shields.io/badge/python-3.10%2B-%233776AB?style=for-the-badge&logo=python&logoColor=white)](#)
-[![Made with FastAPI](https://img.shields.io/badge/built%20with-FastAPI-%23009688?style=for-the-badge&logo=fastapi&logoColor=white)](#)
-
+[![Research Only](https://img.shields.io/badge/scope-research%20only-6258a6?style=for-the-badge)](#responsible-scope)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-8097d6?style=for-the-badge)](#api-reference)
+[![Tests](https://img.shields.io/badge/tests-20%20passing-4c817e?style=for-the-badge)](#verification)
+[![Reproducible](https://img.shields.io/badge/pipeline-reproducible-7bb8d7?style=for-the-badge)](#reproducibility)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow?style=for-the-badge)](LICENSE)
+[![Open Source Love](https://img.shields.io/badge/open%20source-%E2%9D%A4-e25555?style=for-the-badge)](#)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-59b36a?style=for-the-badge)](#contributing)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](#)
+[![Made with FastAPI](https://img.shields.io/badge/built%20with-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](#)
 *A submission for Hack-Nation Challenge 05: Foundation Models for Women’s Hormonal Health.*
 
 </div>
