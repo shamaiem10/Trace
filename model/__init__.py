@@ -1,2 +1,1 @@
-"""Reproducible model and audit utilities for TrustCheck."""
-
+"""Reproducible model and audit utilities for Trace."""

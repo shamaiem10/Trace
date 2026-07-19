@@ -2,28 +2,32 @@
 
 ## Scope
 
-This is a research benchmark, not evidence of diagnostic performance. The labelled `structured_endometriosis_data.csv` has unconfirmed provenance and is the only training source.
+This is a research benchmark, not evidence of diagnostic performance. The labelled `structured_endometriosis_data.csv` has unconfirmed provenance and is the only training-label source.
 
-## Procedure
+## Reproducible procedure
 
 1. Create standard BMI categories in the labelled data and NHANES reference data.
-2. Filter NHANES to women aged 18–49 with valid `RHQ031` and measured BMI.
-3. Use `WTINT2YR` survey weights to form the NHANES BMI-category × irregularity distribution.
-4. Form calibration ratios relative to the labelled data, cap raw weights at 5× their positive median, normalize to mean one, and train a weighted model.
-5. Train both models with a fixed stratified 80/20 split (`random_state=42`) and `HistGradientBoostingClassifier(max_depth=4, max_iter=150)`.
+2. Filter NHANES to women aged 18-49 with valid menstrual-regularity response and measured BMI.
+3. Use `WTINT2YR` survey weights to form the NHANES BMI-category by irregularity distribution.
+4. Form calibration ratios relative to the labelled data, cap raw weights at five times their positive median, normalize to mean one, and train a weighted model.
+5. Use fixed stratified fit/calibration/test partitions (`random_state=42`); the calibration partition is not used to fit either model.
+6. Train `HistGradientBoostingClassifier(max_depth=4, max_iter=150)` raw and weighted models; report performance only on the held-out test partition.
 
-## Actual run results
+## Current generated run
 
-| Metric | Raw model | Calibration-weighted model |
-|---|---:|---:|
-| Held-out ROC AUC | 0.6354 | 0.6309 |
-
-| Correction effect | Value |
+| Item | Value |
 |---|---:|
-| Mean absolute prediction divergence | 0.0660 |
-| Maximum divergence | 0.3306 |
-| Test patients shifting by > 0.15 | 8.8% |
-| NHANES complete reference respondents | 1,206 |
-| Rows whose raw calibration weight was capped | 29.0% |
+| Fit / calibration / test rows | 6400 / 1600 / 2000 |
+| Held-out raw ROC AUC | 0.6323 |
+| Held-out weighted ROC AUC | 0.6412 |
+| Weighted ROC AUC 95% bootstrap CI | 0.6184 to 0.6650 |
+| Held-out weighted average precision | 0.5227 |
+| Held-out weighted Brier score (lower is better) | 0.2307 |
+| Held-out weighted expected calibration error (lower is better) | 0.0388 |
+| Mean absolute model divergence | 0.0639 |
+| Maximum model divergence | 0.3448 |
+| Test predictions shifting by more than 0.15 | 8.5% |
+| NHANES complete reference respondents | 1206 |
+| Raw weights capped | 29.0% |
 
-The corrected model is not expected to improve AUC on a held-out sample drawn from the same labelled population. Its value here is to surface when predictions are sensitive to a documented mismatch with the reference population. The saved `artifacts/training_summary.json` is the source of truth for future runs.
+The weighted model is not expected to improve AUC on a held-out sample drawn from the same labelled population. Its value is to document when predictions are sensitive to a measured mismatch with a reference population. These are internal estimates from labels with unconfirmed provenance, not clinical validation or evidence of diagnostic accuracy. `artifacts/training_summary.json` is the machine-readable source of truth for this run.

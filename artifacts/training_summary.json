@@ -1,4 +1,6 @@
 {
+  "schema_version": 3,
+  "project_name": "Trace",
   "features": [
     "Age",
     "BMI",
@@ -8,7 +10,38 @@
     "Infertility"
   ],
   "disclaimer": "This is a risk pattern flag, not a diagnosis. It is not medical advice.",
-  "interval_radius": 0.6462720279218787,
+  "validation_status": {
+    "label_provenance_verified": false,
+    "external_clinical_validation": false,
+    "deployment_status": "research_only_not_clinically_validated"
+  },
+  "research_interval_radius": 0.6758290558657816,
+  "research_interval_coverage": 0.9,
+  "explanation_reference": {
+    "Age": 34.0,
+    "BMI": 23.125126597681913,
+    "Menstrual_Irregularity": 1.0,
+    "Chronic_Pain_Level": 5.03849430133949,
+    "Hormone_Level_Abnormality": 1.0,
+    "Infertility": 0.0
+  },
+  "reproducibility": {
+    "random_seed": 42,
+    "split": {
+      "fit": 6400,
+      "calibration": 1600,
+      "test": 2000
+    },
+    "python": "3.12.13",
+    "numpy": "1.26.4",
+    "scikit_learn": "1.7.1",
+    "input_sha256": "1631085760d8a0013e049d136243dd6cc509e49fc8860a579c60394c5d91d0eb"
+  },
+  "explainability": {
+    "method": "SHAP permutation explainer",
+    "background_rows": 128,
+    "background_artifact": "shap_background.csv"
+  },
   "reference_rows": 1206,
   "audit": {
     "raw_weight_min": 0.028944426515695832,
@@ -17,10 +50,18 @@
     "capped_fraction": 0.2899
   },
   "metrics": {
-    "raw_auc": 0.6353561166865395,
-    "corrected_auc": 0.6308640326907791,
-    "mean_divergence": 0.06603974830626767,
-    "max_divergence": 0.3306394481330709,
-    "fraction_shifted_over_015": 0.088
+    "raw_auc": 0.6322804882087971,
+    "corrected_auc": 0.641167879736354,
+    "corrected_auc_95_ci": [
+      0.618409962697072,
+      0.6650132640682963
+    ],
+    "corrected_average_precision": 0.5226810768956515,
+    "corrected_brier_score": 0.23072729513968965,
+    "corrected_log_loss": 0.6561202435374661,
+    "corrected_expected_calibration_error": 0.03882867234919633,
+    "mean_divergence": 0.06394129084353876,
+    "max_divergence": 0.34475255855886994,
+    "fraction_shifted_over_015": 0.0845
   }
 }
