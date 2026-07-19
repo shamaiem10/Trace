@@ -55,7 +55,7 @@ MODEL_B = joblib.load(ARTIFACT_DIR / "model_b.joblib")
 FEATURES = summary["features"]
 SHAP_BACKGROUND = pd.read_csv(ARTIFACT_DIR / summary.get("explainability", {}).get("background_artifact", "shap_background.csv"))
 
-app = FastAPI(title="Trace API", version="0.1.0", description="Research-only endometriosis risk-pattern prototype; not clinically validated.")
+app = FastAPI(title="Trace API", version="0.1.0", description="Research-only, calibration-aware endometriosis model prototype; not clinically validated.")
 app.mount("/app", StaticFiles(directory=ROOT / "app"), name="app")
 app.add_middleware(
     CORSMiddleware,
@@ -64,7 +64,10 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
-class Patient(BaseModel):
+class ResearchProfile(BaseModel):
+    """A de-identified research profile, not a patient record or clinical assessment."""
+    model_config = ConfigDict(extra="forbid")
+
     age: int = Field(ge=18, le=49)
     bmi: float = Field(ge=10, le=80)
     menstrual_irregularity: int = Field(ge=0, le=1)
@@ -76,9 +79,10 @@ class Patient(BaseModel):
         return pd.DataFrame([[self.age, self.bmi, self.menstrual_irregularity, self.chronic_pain_level, self.hormone_level_abnormality, self.infertility]], columns=FEATURES)
 
 class CounterfactualRequest(BaseModel):
-    patient: Patient
+    model_config = ConfigDict(extra="forbid")
+    profile: ResearchProfile
     feature: str
-    delta: float
+    delta: float = Field(ge=-70, le=70)
 
 
 TRAJECTORY_MEASURES = ("bleeding_flow", "pain_level", "fatigue_level", "migraine_level", "brain_fog_level", "sleep_hours", "stress_level")
@@ -129,21 +133,23 @@ class TrajectoryExplanationRequest(BaseModel):
         forbidden = ("record", "observed_on", "name", "email", "phone", "address", "medical_record")
         if any(f'"{field}"' in serialized for field in forbidden):
             raise ValueError("send only the aggregated summary; raw observations and identifiers are not accepted")
+        if len(serialized.encode("utf-8")) > 20_000:
+            raise ValueError("aggregated summary must be 20 KB or smaller")
         return self
 
-def fallback_explain(row: pd.DataFrame, base_risk: float) -> list[dict]:
+def fallback_explain(row: pd.DataFrame, base_score: float) -> list[dict]:
     """Temporary dependency-missing fallback; SHAP is used when installed."""
     baseline = summary["explanation_reference"]
     factors = []
     for feature in FEATURES:
         altered = row.astype(float).copy(); altered.loc[0, feature] = baseline[feature]
-        impact = base_risk - float(MODEL_B.predict_proba(altered)[0, 1])
+        impact = base_score - float(MODEL_B.predict_proba(altered)[0, 1])
         factors.append({"feature": feature, "contribution": round(impact, 3), "direction": "above_reference" if impact >= 0 else "below_reference", "reference_value": baseline[feature]})
     return sorted(factors, key=lambda item: abs(item["contribution"]), reverse=True)[:3]
 
 
 def predict_weighted_probability(rows: np.ndarray) -> np.ndarray:
-    """Prediction callable used by SHAP, returning the positive-class probability."""
+    """Prediction callable used by SHAP, returning the model's positive-class score."""
     return MODEL_B.predict_proba(pd.DataFrame(rows, columns=FEATURES))[:, 1]
 
 
@@ -233,7 +239,36 @@ def global_shap_importance() -> list[dict]:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "model_ready": True, "validation_status": summary["validation_status"]}
+    return {"status": "ok", "model_ready": True, "artifact_schema_version": summary["schema_version"],
+            "model_variant": summary.get("model_variant", "NHANES population-reweighted"),
+            "validation_status": summary["validation_status"]}
+
+
+@app.get("/v1/model-card")
+def model_card() -> dict:
+    """Expose the generated model card used by the research audit workspace."""
+    split = summary["reproducibility"]["split"]
+    return {"project_name": summary["project_name"],
+            "task": "Research-only endometriosis model demonstration using structured inputs.",
+            "input_features": FEATURES,
+            "source_data": {"name": "structured_endometriosis_data.csv",
+                            "rows": int(sum(split.values())),
+                            "label_provenance_verified": summary["validation_status"]["label_provenance_verified"],
+                            "use_note": "Supplied labelled source only; it is not verified clinical ground truth."},
+            "reference_population": {"name": summary["representation_audit"]["reference_population"],
+                                     "rows": summary["reference_rows"],
+                                     "use_note": "Used for population calibration only; no NHANES record is used as a training label."},
+            "reproducibility": summary["reproducibility"], "metrics": summary["metrics"],
+            "audit": summary["audit"], "validation_status": summary["validation_status"],
+            "explainability": summary["explainability"], "disclaimer": summary["disclaimer"]}
+
+
+@app.get("/v1/representation-audit")
+def representation_audit() -> dict:
+    """Return the generated source-versus-reference strata comparison."""
+    return {**summary["representation_audit"], "audit": summary["audit"],
+            "note": "This checks selected feature distributions, not clinical validity or label quality.",
+            "disclaimer": summary["disclaimer"]}
 
 @app.get("/", include_in_schema=False)
 def demo() -> FileResponse:
@@ -241,20 +276,21 @@ def demo() -> FileResponse:
     return FileResponse(DEMO_PATH)
 
 @app.post("/v1/assess")
-def assess(patient: Patient) -> dict:
-    row = patient.row()
-    risk_a = float(MODEL_A.predict_proba(row)[0, 1])
-    risk_b = float(MODEL_B.predict_proba(row)[0, 1])
-    divergence = abs(risk_a - risk_b)
+def assess(profile: ResearchProfile) -> dict:
+    """Compare raw and population-calibrated model scores for one research profile."""
+    row = profile.row()
+    raw_score = float(MODEL_A.predict_proba(row)[0, 1])
+    calibrated_score = float(MODEL_B.predict_proba(row)[0, 1])
+    calibration_shift = abs(raw_score - calibrated_score)
     factors, shap_base_value, explanation_method = shap_factors(row)
-    explanation_note = "Local SHAP values show how each input moves this model's probability score relative to its background dataset. They are not causal or medical explanations."
+    explanation_note = "Local SHAP values show how each input moves this model score relative to its background dataset. They are not causal or medical explanations."
     if explanation_method != "shap_permutation":
         explanation_note = "SHAP is not installed in this runtime; these are baseline-sensitivity fallback values. Install the pinned requirements to enable SHAP. They are not causal or medical explanations."
-    return {"risk_score": round(risk_b, 3), "raw_model_score": round(risk_a, 3),
-            "model_agreement_score": round(max(0.0, 1 - divergence / 0.5), 2),
-            "agreement_note": "Agreement between the raw and calibration-weighted research models; it is not clinical certainty or validation.",
-            "research_prediction_range": [round(max(0, risk_b - summary["research_interval_radius"]), 3), round(min(1, risk_b + summary["research_interval_radius"]), 3)],
-            "research_prediction_range_note": f"A held-out {int(summary['research_interval_coverage'] * 100)}% residual-error band. It may be broad and is not an individual prognosis or guarantee.",
+    return {"calibrated_research_score": round(calibrated_score, 3), "raw_research_score": round(raw_score, 3),
+            "calibration_shift": round(calibration_shift, 3),
+            "calibration_shift_note": "Absolute score change after the documented population-calibration step. It is a sensitivity check, not clinical certainty or validation.",
+            "research_score_range": [round(max(0, calibrated_score - summary["research_interval_radius"]), 3), round(min(1, calibrated_score + summary["research_interval_radius"]), 3)],
+            "research_score_range_note": f"A held-out {int(summary['research_interval_coverage'] * 100)}% residual-error band around the calibrated research score. It may be broad and is not an individual prognosis or guarantee.",
             "top_factors": factors, "explanation_method": explanation_method, "shap_base_value": None if shap_base_value is None else round(shap_base_value, 4), "explanation_note": explanation_note,
             "model_metadata": {"schema_version": summary["schema_version"], "scikit_learn": summary["reproducibility"]["scikit_learn"], "validation_status": summary["validation_status"]}, "disclaimer": summary["disclaimer"]}
 
@@ -310,11 +346,22 @@ def counterfactual(request: CounterfactualRequest) -> dict:
     mapping = {"age": "Age", "bmi": "BMI", "menstrual_irregularity": "Menstrual_Irregularity", "chronic_pain_level": "Chronic_Pain_Level", "hormone_level_abnormality": "Hormone_Level_Abnormality", "infertility": "Infertility"}
     if request.feature not in mapping:
         raise HTTPException(422, detail=f"feature must be one of: {', '.join(mapping)}")
-    row = request.patient.row(); column = mapping[request.feature]
-    row.loc[0, column] += request.delta
-    if column == "Chronic_Pain_Level": row.loc[0, column] = np.clip(row.loc[0, column], 0, 10)
-    risk = float(MODEL_B.predict_proba(row)[0, 1])
-    return {"feature": request.feature, "delta": request.delta, "adjusted_risk_score": round(risk, 3), "disclaimer": summary["disclaimer"]}
+    row = request.profile.row(); column = mapping[request.feature]
+    original = float(row.loc[0, column]); adjusted = original + request.delta
+    bounds = {"Age": (18, 49), "BMI": (10, 80), "Menstrual_Irregularity": (0, 1),
+              "Chronic_Pain_Level": (0, 10), "Hormone_Level_Abnormality": (0, 1), "Infertility": (0, 1)}
+    low, high = bounds[column]
+    binary = column in {"Menstrual_Irregularity", "Hormone_Level_Abnormality", "Infertility"}
+    if not low <= adjusted <= high or binary and adjusted not in {0, 1}:
+        raise HTTPException(422, detail=f"adjusted {request.feature} must remain within its valid domain")
+    row.loc[0, column] = adjusted
+    adjusted_score = float(MODEL_B.predict_proba(row)[0, 1])
+    baseline_score = float(MODEL_B.predict_proba(request.profile.row())[0, 1])
+    return {"feature": request.feature, "original_value": original, "adjusted_value": adjusted,
+            "score_before": round(baseline_score, 3), "adjusted_research_score": round(adjusted_score, 3),
+            "score_change": round(adjusted_score - baseline_score, 3),
+            "interpretation_note": "A one-input model sensitivity test; not a causal, clinical, or treatment effect.",
+            "disclaimer": summary["disclaimer"]}
 
 @app.get("/v1/data-debt-report")
 def data_debt_report() -> dict:

@@ -9,14 +9,15 @@
     "Hormone_Level_Abnormality",
     "Infertility"
   ],
-  "disclaimer": "This is a risk pattern flag, not a diagnosis. It is not medical advice.",
+  "disclaimer": "This is a research model score, not a diagnosis. It is not medical advice.",
   "validation_status": {
     "label_provenance_verified": false,
     "external_clinical_validation": false,
     "deployment_status": "research_only_not_clinically_validated"
   },
-  "research_interval_radius": 0.6758290558657816,
+  "research_interval_radius": 0.692430827872569,
   "research_interval_coverage": 0.9,
+  "model_variant": "NHANES population-reweighted (not probability calibrated)",
   "explanation_reference": {
     "Age": 34.0,
     "BMI": 23.125126597681913,
@@ -44,24 +45,89 @@
   },
   "reference_rows": 1206,
   "audit": {
-    "raw_weight_min": 0.028944426515695832,
-    "raw_weight_max": 26.925879642625745,
-    "cap": 0.8411926370187652,
-    "capped_fraction": 0.2899
+    "raw_weight_min": 0.029775051893137085,
+    "raw_weight_max": 24.914548874140447,
+    "cap": 0.8376493276252822,
+    "capped_fraction": 0.29203125
+  },
+  "representation_audit": {
+    "reference_population": "NHANES 2021-2023 survey-weighted reference extract",
+    "matching_variables": [
+      "BMI category",
+      "menstrual irregularity"
+    ],
+    "strata": [
+      {
+        "bmi_category": "Normal",
+        "menstrual_irregularity": 0,
+        "source_rate": 0.169,
+        "reference_rate": 0.2960070828590499,
+        "weight_ratio": 1.7515212003494076
+      },
+      {
+        "bmi_category": "Normal",
+        "menstrual_irregularity": 1,
+        "source_rate": 0.3917,
+        "reference_rate": 0.027003708160451757,
+        "weight_ratio": 0.06893977064194985
+      },
+      {
+        "bmi_category": "Obese",
+        "menstrual_irregularity": 0,
+        "source_rate": 0.012,
+        "reference_rate": 0.32311055571150893,
+        "weight_ratio": 26.925879642625745
+      },
+      {
+        "bmi_category": "Obese",
+        "menstrual_irregularity": 1,
+        "source_rate": 0.0276,
+        "reference_rate": 0.05658859381981437,
+        "weight_ratio": 2.0503113702831293
+      },
+      {
+        "bmi_category": "Overweight",
+        "menstrual_irregularity": 0,
+        "source_rate": 0.0813,
+        "reference_rate": 0.23857897814466023,
+        "weight_ratio": 2.9345507766870877
+      },
+      {
+        "bmi_category": "Overweight",
+        "menstrual_irregularity": 1,
+        "source_rate": 0.1906,
+        "reference_rate": 0.03206626332315533,
+        "weight_ratio": 0.16823852740375306
+      },
+      {
+        "bmi_category": "Underweight",
+        "menstrual_irregularity": 0,
+        "source_rate": 0.0402,
+        "reference_rate": 0.024109286218584443,
+        "weight_ratio": 0.5997334880244887
+      },
+      {
+        "bmi_category": "Underweight",
+        "menstrual_irregularity": 1,
+        "source_rate": 0.0876,
+        "reference_rate": 0.002535531762774955,
+        "weight_ratio": 0.028944426515695832
+      }
+    ]
   },
   "metrics": {
     "raw_auc": 0.6322804882087971,
-    "corrected_auc": 0.641167879736354,
+    "corrected_auc": 0.6422231054583996,
     "corrected_auc_95_ci": [
-      0.618409962697072,
-      0.6650132640682963
+      0.6199337262354265,
+      0.666117913064719
     ],
-    "corrected_average_precision": 0.5226810768956515,
-    "corrected_brier_score": 0.23072729513968965,
-    "corrected_log_loss": 0.6561202435374661,
-    "corrected_expected_calibration_error": 0.03882867234919633,
-    "mean_divergence": 0.06394129084353876,
-    "max_divergence": 0.34475255855886994,
-    "fraction_shifted_over_015": 0.0845
+    "corrected_average_precision": 0.524806893431006,
+    "corrected_brier_score": 0.2308455387592904,
+    "corrected_log_loss": 0.6566635261372055,
+    "corrected_expected_calibration_error": 0.041489560552255444,
+    "mean_divergence": 0.0666964241720777,
+    "max_divergence": 0.4208363128353432,
+    "fraction_shifted_over_015": 0.093
   }
 }

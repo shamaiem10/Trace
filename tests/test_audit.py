@@ -14,6 +14,17 @@ def test_audit_adds_normalized_weight_without_losing_rows():
     assert audit.capped_fraction >= 0
 
 
+def test_audit_rejects_empty_matching_configuration():
+    source = pd.DataFrame({"group": ["a"]})
+    reference = pd.DataFrame({"reference_group": ["a"]})
+    try:
+        audit_and_reweight(source, reference, None, [])
+    except ValueError as error:
+        assert "match" in str(error).lower()
+    else:
+        raise AssertionError("empty matching configuration must fail")
+
+
 def test_bmi_categories_handle_boundaries():
     assert bmi_category(18.4) == "Underweight"
     assert bmi_category(18.5) == "Normal"

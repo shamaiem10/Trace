@@ -40,6 +40,12 @@ def audit_and_reweight(
     the source are assigned zero raw weight, which makes coverage gaps explicit.
     """
     pairs = list(match_columns)
+    if not pairs:
+        raise ValueError("At least one source/reference match column pair is required.")
+    if df.empty or reference_df.empty:
+        raise ValueError("Source and reference data must both contain rows.")
+    if cap_multiple <= 0:
+        raise ValueError("cap_multiple must be positive.")
     source_cols, reference_cols = zip(*pairs, strict=True)
     result = df.copy()
     source_key = list(source_cols)

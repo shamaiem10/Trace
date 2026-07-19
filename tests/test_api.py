@@ -8,16 +8,22 @@ def test_assessment_returns_safety_fields():
     assert response.status_code == 200
     body = response.json()
     assert "disclaimer" in body
-    assert "trust_score" not in body
-    assert 0 <= body["model_agreement_score"] <= 1
-    assert len(body["research_prediction_range"]) == 2
-    assert "not clinical certainty" in body["agreement_note"]
+    assert "risk_score" not in body
+    assert 0 <= body["calibrated_research_score"] <= 1
+    assert 0 <= body["calibration_shift"] <= 1
+    assert len(body["research_score_range"]) == 2
+    assert "not clinical certainty" in body["calibration_shift_note"]
     assert len(body["top_factors"]) == 3
     assert body["explanation_method"] in {"shap_permutation", "baseline_sensitivity_fallback"}
 
 
 def test_assessment_rejects_out_of_range_binary_input():
     response = TestClient(app).post("/v1/assess", json={"age": 32, "bmi": 28, "menstrual_irregularity": 2, "chronic_pain_level": 7, "hormone_level_abnormality": 0, "infertility": 0})
+    assert response.status_code == 422
+
+
+def test_assessment_rejects_unapproved_identifiers():
+    response = TestClient(app).post("/v1/assess", json={"age": 32, "bmi": 28, "menstrual_irregularity": 1, "chronic_pain_level": 7, "hormone_level_abnormality": 0, "infertility": 0, "name": "not allowed"})
     assert response.status_code == 422
 
 
@@ -30,22 +36,40 @@ def test_health_exposes_non_clinical_validation_status():
     assert status["deployment_status"] == "research_only_not_clinically_validated"
 
 
-def test_demo_is_wired_to_live_trajectory_backend():
+def test_model_card_and_representation_audit_expose_generated_artifacts():
+    client = TestClient(app)
+    card = client.get("/v1/model-card")
+    audit = client.get("/v1/representation-audit")
+    assert card.status_code == 200
+    assert card.json()["source_data"]["rows"] == 10_000
+    assert card.json()["reference_population"]["rows"] == 1206
+    assert audit.status_code == 200
+    assert len(audit.json()["strata"]) == 8
+
+
+def test_demo_is_wired_to_live_research_model_backend():
     response = TestClient(app).get("/")
     assert response.status_code == 200
-    assert "fetch('/v1/trajectory'" in response.text
-    assert "Direct backend response" in response.text
+    assert "fetch('/v1/assess'" in response.text
+    assert "fetch('/v1/explain/global'" in response.text
+    assert "Model result, with context." in response.text
 
 
 def test_demo_serves_the_local_hero_artwork():
-    response = TestClient(app).get("/app/assets/trace-hero.png")
+    response = TestClient(app).get("/app/assets/traceimage.jpeg")
     assert response.status_code == 200
-    assert response.headers["content-type"] == "image/png"
+    assert response.headers["content-type"] == "image/jpeg"
 
 
 def test_counterfactual_rejects_unknown_feature():
-    patient = {"age": 32, "bmi": 28, "menstrual_irregularity": 1, "chronic_pain_level": 7, "hormone_level_abnormality": 0, "infertility": 0}
-    response = TestClient(app).post("/v1/counterfactual", json={"patient": patient, "feature": "unknown", "delta": 1})
+    profile = {"age": 32, "bmi": 28, "menstrual_irregularity": 1, "chronic_pain_level": 7, "hormone_level_abnormality": 0, "infertility": 0}
+    response = TestClient(app).post("/v1/counterfactual", json={"profile": profile, "feature": "unknown", "delta": 1})
+    assert response.status_code == 422
+
+
+def test_counterfactual_rejects_values_outside_feature_domain():
+    profile = {"age": 32, "bmi": 28, "menstrual_irregularity": 1, "chronic_pain_level": 7, "hormone_level_abnormality": 0, "infertility": 0}
+    response = TestClient(app).post("/v1/counterfactual", json={"profile": profile, "feature": "menstrual_irregularity", "delta": 0.5})
     assert response.status_code == 422
 
 
