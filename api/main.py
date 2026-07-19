@@ -10,11 +10,13 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT_DIR = Path(os.getenv("TRUSTCHECK_ARTIFACT_DIR", ROOT / "artifacts"))
 REPORT_PATH = ROOT / "data" / "DATA_DEBT_REPORT.md"
+DEMO_PATH = ROOT / "app" / "index.html"
 summary = json.loads((ARTIFACT_DIR / "training_summary.json").read_text(encoding="utf-8"))
 MODEL_A = joblib.load(ARTIFACT_DIR / "model_a.joblib")
 MODEL_B = joblib.load(ARTIFACT_DIR / "model_b.joblib")
@@ -57,6 +59,11 @@ def explain(row: pd.DataFrame, base_risk: float) -> list[dict]:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "model_ready": True}
+
+@app.get("/", include_in_schema=False)
+def demo() -> FileResponse:
+    """Serve the lightweight demonstration interface with the API."""
+    return FileResponse(DEMO_PATH)
 
 @app.post("/v1/assess")
 def assess(patient: Patient) -> dict:
