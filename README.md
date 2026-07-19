@@ -20,7 +20,7 @@
 > **Trace is research infrastructure, not a medical device.** It does not diagnose endometriosis, determine whether a person has a condition, recommend treatment, or provide medical advice. The labelled source has unverified provenance and the model has no external clinical validation.
 
 ---
-
+## Live Link : https://trace-two-theta.vercel.app/
 ## The idea in one minute
 
 Many health-AI demos begin with a dataset, train one model, and present a polished score. That skips the question researchers must answer first: **does the available training data resemble the population the model is meant to represent?**
