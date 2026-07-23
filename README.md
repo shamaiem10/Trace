@@ -16,7 +16,7 @@
 
 </div>
 
-> [!IMPORTANT]
+> [!!IMPORTANT]
 > **Trace is research infrastructure, not a medical device.** It does not diagnose endometriosis, determine whether a person has a condition, recommend treatment, or provide medical advice. The labelled source has unverified provenance and the model has no external clinical validation.
 
 ---
